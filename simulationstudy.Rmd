@@ -1,0 +1,249 @@
+---
+title: "Simulation Study"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Discussion of Results
+
+```{r libs, include=incBool, message=FALSE}
+library(tidyverse)
+library(readxl)
+sim.multi.jun <- read_excel("Desktop/2020hsmcResearch/simulationData/simmulti.xlsx")
+metadata <- read_excel("Desktop/2020hsmcResearch/simulationData/metadata.xlsx")
+sim.multi<- simmulti%>%mutate(alpha0hat = as.numeric(alpha0hat), gammahat = as.numeric(gammahat))
+
+library(moments)
+library(knitr)
+library(latex2exp)
+```
+
+## Including Plots
+```{r ZhuResults, echo=incBool}
+kable(metadata[21:25, ], digits = 3, caption = "First 5 Rows of Results")
+```
+
+Sample of the metadata above.
+
+```{r CntNA, echo=incBool}
+metadata%>%filter(cnt<50)%>%ggplot(aes(alpha0, gamma))+geom_point(aes(size = cnt))+
+  labs(title = "Number of Valid Simulations out of 50", x = TeX('$\\alpha_0$'), y = TeX('$\\gamma$'), size = "Valid")+
+  theme_light()
+```
+### Density
+
+```{r FisherVar, include=incBool}
+#function for calculating variance based on Fisher Information
+modvar <- function ( p3,p5,Tim,M)
+{
+  if(p5 == 0)
+  {
+    EValphaa <- exp(p3) *(Tim^2 - (exp(-M/Tim)) * Tim^2)/M
+    EValphaandgam <- exp(p3) * (M*Tim)/2
+    EVgamma <- exp(p3) * (3*M*Tim + 2*Tim*M^2)/6
+  }
+  else
+  {
+    EValphaa<- (exp(p3)*((1-exp(p5))^-1)*Tim*(M)^-1*(1-exp(M)^(exp(p5)-1)))
+    EValphaandgam<- (exp(p3)*Tim*exp(p5)*(1-exp(p5))^-2*(((1-exp(-M))*(M)^-1)-
+      (exp(-M)*exp(M*exp(p5)))+exp(-M)*(M)^-1*(exp(exp(p5)*M)*(exp(p5)*M-1)+1)))
+    EVgamma<- exp(p3)*Tim*exp(p5)*(1-exp(p5))^-3*(
+      (1+exp(p5))*(1-exp(-M))*(M)^-1-
+        exp(-M)*exp(exp(p5)*M)*(exp(p5)*M+1)+(2-exp(p5))*exp(-M)*M^-1*(
+          exp(exp(p5)*M)*(1-exp(p5)*M+(exp(p5)*M)^2)-1
+        )+ 2*exp(-M)*M^-1*(
+          exp(exp(p5)*M)*(exp(p5)*M-1)+1
+        )-exp(-M)*(M)^-1*(exp(exp(p5)*M)-1))
+  }
+  
+  return(matrix(c(EValphaa, EValphaandgam, EValphaandgam, EVgamma),nrow=2,ncol=2))
+}
+
+```
+
+#### M.L.E. for Gamma
+
+To begin the investigation of the small sample distribution of the m.l.e.'s $\hat{\gamma}$ and $\hat{\alpha_0}$, consider the density plot for the case where $\gamma = .01$ and $\alpha_0 = -1.4$.
+
+```{r densityg5, echo=incBool}
+as.data.frame(sim.multi)%>%filter(gamma == .01, alpha0 == -1.4, is.na(gammahat) == FALSE)%>%ggplot(aes(x=gammahat))+geom_density(adjust = 1.5)+
+  annotate("segment", x = .01, xend = .01, y = 0, yend = 9,colour = "red")+
+  labs(x = TeX('$\\hat{\\gamma}$'), y = "density")+
+  xlim(-.15, .25)+
+  theme_classic()
+```
+
+```{r Summsatsg5, echo=incBool}
+kable(as.data.frame(sim.multi)%>%filter(gamma == .01, alpha0 == -1.4, is.na(gammahat) == FALSE)%>%
+  select(gammahat) %>%
+  summarize_all(list(mean = mean, var = var, skew = skewness, kurt = kurtosis))%>%
+  mutate(mse = (mean - .01)^2 + var ), digits = 3, caption = "Summary Statistics for Small Distribution")
+```
+
+
+We can use the skewness and kurtosis to separately test for normaility
+
+```{r}
+agostino.test((as.data.frame(sim.multi)%>%filter(gamma == .01, alpha0 == -1.4, is.na(gammahat) == FALSE))$gammahat)
+```
+
+```{r}
+anscombe.test((as.data.frame(sim.multi)%>%
+                 filter(gamma == .01, alpha0 == -1.4, is.na(gammahat) == FALSE))$gammahat)
+```
+
+#### MLE for Alpha0
+
+Now consider the density plot for $\hat{\alpha}_0$ for the case where $\gamma = .01$ and $\alpha_0 = -1.4$.
+
+```{r FigSmallA0, echo=incBool}
+as.data.frame(sim.multi)%>%
+  filter(gamma == .01, alpha0 == -1.4, is.na(alpha0hat) == FALSE)%>%
+  ggplot(aes(alpha0hat))+geom_density()+
+  annotate("segment", x = -1.4, xend = -1.4, y = 0, yend = 1,colour = "red")+
+  labs(x = TeX('$\\hat{\\alpha_0}$'), y = "density")+
+  xlim(-3, 0)+
+  theme_classic()
+```
+
+```{r summStata0, echo = incBool}
+kable(as.data.frame(sim.multi)%>%filter(gamma == .01, alpha0 == -1.4, is.na(gammahat) == FALSE)%>%
+  select(alpha0hat) %>%
+  summarize_all(list(mean = mean, var = var, skew = skewness, kurt = kurtosis))%>%
+  mutate(mse = (mean - .5)^2 + var ), digits =3, caption = "Summary Statistics for Small Sample Distribution for alpha0hat")
+```
+
+We can use the skewness and kurtosis to separatelyt test for normaility
+
+```{r}
+agostino.test((as.data.frame(sim.multi)%>%
+                 filter(gamma == .01, alpha0 == -1.4, is.na(alpha0hat) == FALSE))$alpha0hat)
+```
+
+```{r}
+anscombe.test((as.data.frame(sim.multi)%>%
+                 filter(gamma == .01, alpha0 == -1.4, is.na(alpha0hat) == FALSE))$alpha0hat)
+```
+
+### Effect of $\alpha_0$ on $\hat{\gamma}$
+
+```{r EffectAonG, echo = incBool, message = incBool}
+as.data.frame(sim.multi)%>%
+  filter(gamma == .01, is.na(gammahat) == FALSE, (round(10*alpha0)%%6) == 0)%>%
+  ggplot(aes(gammahat))+geom_density()+facet_grid(alpha0~.)+
+  annotate("segment", x = .01, xend = .01, y = 0, yend = 17,colour = "red")+
+  labs(x = TeX('$\\hat{\\gamma}$'), y = "density")+
+  xlim(-.1, .1)+
+  theme_light()
+```
+
+```{r SumStatsAonG, echo = incBool}
+as.data.frame(sim.multi)%>%
+  filter(gamma == .01 ,is.na(gammahat) == FALSE, (round(10*alpha0)%%2) == 0)%>%
+  select(alpha0, gammahat) %>% group_by(alpha0)%>%
+  summarize_all(list(mean = mean, var = var, skew = skewness, kurt = kurtosis))%>%
+  mutate(mse = (mean - .01)^2 + var ) -> summary.gamma
+
+kable(summary.gamma, digits = 3, caption = "Summary Stats All")
+```
+
+```{r FigAonBiasG, echo = incBool}
+metadata%>%filter(alpha0>-2.5)%>%
+  ggplot(aes(alpha0, g.bias))+geom_point()+
+  labs(x = TeX('$\\alpha_0$'), y = TeX('$Bias(\\hat{\\gamma})$'))+
+#  xlim(-3, 0)+
+  theme_light()
+```
+
+```{r FigAonMSEG, echo = incBool}
+metadata%>%filter(alpha0>-2.5)%>%
+  ggplot(aes(alpha0, g.mse))+geom_point()+
+  labs(x = TeX('$\\alpha_0$'), y = TeX('$MSE(\\hat{\\gamma})$'))+
+  theme_light()
+```
+### Effect of $\hat\alpha_0$ on $\gamma$
+
+```{r FigGonA, echo = incBool}
+as.data.frame(sim.multi)%>%filter(alpha0 == -1.4, is.na(alpha0hat) == FALSE, (round(gamma*100)%%2) == 0)%>%ggplot(aes(alpha0hat))+geom_density()+facet_grid(gamma~.)+
+  annotate("segment", x = -1.4, xend = -1.4, y = 0, yend = 7,colour = "red")+
+  labs(x = TeX('$\\hat{\\alpha_0}$'), y = "density")+
+  xlim(-1.75, -1)+
+  theme_light()
+```
+
+```{r }
+as.data.frame(sim.multi)%>%
+  filter(alpha0 == -1.4 ,is.na(alpha0hat) == FALSE, (round(gamma*100)%%5) == 0)%>%
+  select(alpha0hat, gamma) %>% group_by(gamma)%>%
+  summarize_all(list(mean = mean, var = var, skew = skewness, kurt = kurtosis))%>%
+  mutate(mse = (mean - (-1.4))^2 + var ) -> summary.alpha0
+
+kable(summary.alpha0, digits = 3, caption = "Summary Statistics for Small Sample Distribution for alphahat")
+```
+
+```{r FigGonBiasA, echo = incBool}
+metadata%>%filter(alpha0>-2.5)%>%
+  ggplot(aes(gamma, a.bias))+geom_point()+
+  labs(x = TeX('$\\gamma$'), y = TeX('$Bias(\\hat{\\alpha_0})$'))+
+  theme_light()
+```
+```{r FigGonMSEA, echo = incBool}
+metadata%>%filter(alpha0>-2.5)%>%
+  ggplot(aes(gamma, a.mse))+geom_point()+
+  labs(x = TeX('$\\gamma$'), y = TeX('$MSE(\\hat{\\alpha_0})$'))+
+  theme_light()
+```
+### Correlation Between Estimates
+
+```{r MSEAvMSEG, echo = incBool}
+metadata%>%filter(alpha0>-2.5)%>%
+  ggplot(aes(a.mse, g.mse))+ geom_point(aes(color = alpha0))+
+  labs(x = TeX('$MSE(\\hat{\\alpha_0})$'), y = TeX('$MSE(\\hat{\\gamma})$'))+
+  theme_light()
+```
+```{r VarAvVarG, echo=incBool}
+metadata%>%filter(alpha0>-2.5)%>%
+  mutate(a.var = a.mse - a.bias^2, g.var = g.mse - g.bias^2)%>%
+  ggplot(aes(a.var, g.var))+ geom_point(aes(color = alpha0))+
+  labs(x = TeX('$Var(\\hat{\\alpha_0})$'), y = TeX('$Var(\\hat{\\gamma})$'))+
+  theme_light()
+```
+
+```{r BiasAvBiasG, echo=incBool}
+metadata%>%filter(alpha0>-2.5)%>%
+  ggplot(aes(a.bias, g.bias))+ geom_point(aes(color = alpha0))+
+  labs(x = TeX('$Bias(\\hat{\\alpha_0})$'), y = TeX('$Bias(\\hat{\\gamma})$'))+
+  theme_light()
+```
+
+```{r CorZel, echo = incBool}
+cor(metadata%>%filter(alpha0>-2.5)%>% select(a.bias, a.mse, g.bias, g.mse))
+```
+```{r}
+cor(metadata$a.bias^2, metadata$g.bias^2)
+```
+
+### Compare Simulated Variance to Asymptotic Variance
+```{r ARatioBox, echo=incBool}
+metadata%>%filter(alpha0>-2.5)%>%rowwise()%>%
+  mutate(a.varT = a.mse - a.bias^2, g.varT = g.mse - g.bias^2, a.varI = solve(modvar(alpha0, gamma, 50, 25))[1,1], g.varI = solve(modvar(alpha0, gamma, 50, 25))[2,2], a.ratio = a.varI/a.varT/20, g.ratio = a.varI/a.varT/20 )%>%filter(is.na(a.ratio) == FALSE, is.na(g.ratio)==FALSE)%>%ggplot(aes(a.ratio))+geom_boxplot()+
+  annotate("segment", x = 1, xend = 1, y = -.4, yend = .4,colour = "red") +
+  labs(x = TeX('$Ratio(\\gamma$)'), y = "")
+```
+
+
+```{r 5NumSumm, echo =incBool, message=incBool}
+summary((metadata%>%filter(alpha0>-2.5)%>%rowwise()%>%mutate(a.varT = a.mse - a.bias^2, g.varT = g.mse - g.bias^2, a.varI = solve(modvar(alpha0, gamma, 50, 25))[1,1], g.varI = solve(modvar(alpha0, gamma, 50, 25))[2,2], a.ratio = a.varI/a.varT, g.ratio = g.varI/g.varT )%>%filter(is.na(a.ratio) == FALSE, is.na(g.ratio)==FALSE)%>%select(g.ratio, a.ratio)))
+```
+
+
+
+```{r GRatioBox, echo=incBool}
+metadata%>%filter(alpha0>-2.5)%>%rowwise()%>%mutate(a.varT = a.mse - a.bias^2, g.varT = g.mse - g.bias^2, a.varI = solve(modvar(alpha0, gamma, 50, 25))[1,1], g.varI = solve(modvar(alpha0, gamma, 50, 25))[2,2], a.ratio = a.varI/a.varT/20, g.ratio = g.varI/g.varT/20 )%>%filter(is.na(a.ratio) == FALSE, is.na(g.ratio)==FALSE)%>%ggplot(aes(a.ratio))+geom_boxplot()+
+  annotate("segment", x = 1, xend = 1, y = -.4, yend = .4,colour = "red") +
+  labs(x = TeX('$Ratio(\\alpha_0$)'), y = "")
+```
+
