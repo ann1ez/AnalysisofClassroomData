@@ -1,0 +1,80 @@
+---
+title: "PowerAnalyis"
+author: "Alex White"
+date: "7/22/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Fix alpha, mu , T
+
+```{r}
+alpha = -1
+mu = .5
+T = 50
+
+modvar <- function ( p3,p5,Tim,M)
+{
+  if(p5 == 0)
+  {
+    EValphaa <- exp(p3) * T
+    EValphaandgam <- exp(p3) * (M*Tim)/2
+    EVgamma <- exp(p3) * (3*M*Tim + 2*Tim*M^2)/6
+    
+  }
+  else
+  {
+    EValphaa<- (exp(p3)*((1-exp(p5))^-1)*Tim*(M)^-1*(1-exp(M)^(exp(p5)-1)))
+    EValphaandgam<- (exp(p3)*Tim*exp(p5)*(1-exp(p5))^-2*(((1-exp(-M))*(M)^-1)-
+                (exp(-M)*exp(M*exp(p5)))+exp(-M)*(M)^-1*(exp(exp(p5)*M)*(exp(p5)*M-1)+1)))
+    EVgamma<- exp(p3)*Tim*exp(p5)*(1-exp(p5))^-3*(
+      (1+exp(p5))*(1-exp(-M))*(M)^-1-
+        exp(-M)*exp(exp(p5)*M)*(exp(p5)*M+1)+(2-exp(p5))*exp(-M)*M^-1*(
+          exp(exp(p5)*M)*(1-exp(p5)*M+(exp(p5)*M)^2)-1
+        )+ 2*exp(-M)*M^-1*(
+          exp(exp(p5)*M)*(exp(p5)*M-1)+1
+        )-exp(-M)*(M)^-1*(exp(exp(p5)*M)-1))
+  }
+  
+  return(matrix(c(EValphaa, EValphaandgam, EValphaandgam, EVgamma),nrow=2,ncol=2))
+}
+
+lam = mu * T
+my.var = 12/(exp(alpha)*T*(6*lam+lam^2))
+var<- function(gamma){solve(modvar(p3 = alpha , p5 = gamma , Tim = T , M = mu*T))[2,2]}
+```
+
+Reject H0: if gammahat>1.645*sqrt(var(gamma = 0)/n).
+
+Prob of reject Ho is 1- pnorm(1.645*sqrt(var(gamma = 0)/n), 0, sqrt(var(gamma = 0)/n)) = .05 if Ho is true.
+
+power = Prob of reject H0 is 1- pnorm(1.645*sqrt(var(0)/n), gamma, sqrt(var(gamma)/n))  when gamma is not 0.
+
+plot the power as a function of n for some gamma's
+
+```{r}
+library(tidyverse)
+num.class = rep(1:100, 15)
+gamma = rep((1:15)/100, each= 100)
+power.mat = data.frame(num.class, gamma)
+#View(power.mat)
+power.mat = power.mat%>%rowwise()%>%mutate(power = 1- pnorm(1.645*sqrt(my.var/num.class), gamma, sqrt(var(gamma)/num.class)))
+power.mat%>%
+  filter(gamma < .06)%>%
+  ggplot(aes(x = num.class, y = power))+geom_path(aes(color = factor(gamma)))+
+  geom_hline(yintercept = .8)
+
+power.mat%>%
+  filter(gamma < .06)%>%
+  ggplot(aes(x = num.class, y = power))+geom_path(aes(color = factor(gamma)))+
+  geom_hline(yintercept = .8)
+```
+```{r}
+power.mat%>%filter(power>.8)%>%group_by(gamma)%>%summarize(sample.size = min(num.class))
+```
+
+
+
